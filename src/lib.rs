@@ -237,7 +237,7 @@ pub fn hash_image(image: &[u8]) -> Result<String, Error> {
     Ok(hash.to_base64())
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Rating {
     General,
     Mature,
@@ -263,13 +263,13 @@ impl Rating {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Content {
     Image(String),
     Flash(String),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Submission {
     pub id: i32,
     pub artist: String,
