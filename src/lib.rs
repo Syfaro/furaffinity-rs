@@ -228,8 +228,15 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
     }))
 }
 
+pub fn get_hasher() -> img_hash::Hasher {
+    img_hash::HasherConfig::new()
+        .hash_alg(img_hash::HashAlg::DoubleGradient)
+        .hash_size(8, 8)
+        .to_hasher()
+}
+
 pub fn hash_image(image: &[u8]) -> Result<String, Error> {
-    let hasher = img_hash::HasherConfig::new().to_hasher();
+    let hasher = get_hasher();
 
     let image = image::load_from_memory(image)?;
     let hash = hasher.hash_image(&image);
