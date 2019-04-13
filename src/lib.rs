@@ -230,8 +230,9 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
 
 pub fn get_hasher() -> img_hash::Hasher {
     img_hash::HasherConfig::new()
-        .hash_alg(img_hash::HashAlg::DoubleGradient)
+        .hash_alg(img_hash::HashAlg::Gradient)
         .hash_size(8, 8)
+        .preproc_dct()
         .to_hasher()
 }
 
