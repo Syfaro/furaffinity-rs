@@ -59,26 +59,28 @@ impl From<image::ImageError> for Error {
 pub struct FurAffinity {
     cookie_a: String,
     cookie_b: String,
+    user_agent: String,
 
     client: reqwest::Client,
 }
 
 impl FurAffinity {
-    pub fn new<T>(cookie_a: T, cookie_b: T) -> Self
+    pub fn new<T>(cookie_a: T, cookie_b: T, user_agent: T) -> Self
     where
         T: Into<String>,
     {
         Self {
             cookie_a: cookie_a.into(),
             cookie_b: cookie_b.into(),
+            user_agent: user_agent.into(),
             client: reqwest::Client::new(),
         }
     }
 
     fn get_cookies(&self) -> String {
         [
-            build_cookie("a".into(), &self.cookie_a),
-            build_cookie("b".into(), &self.cookie_b),
+            build_cookie("a", &self.cookie_a),
+            build_cookie("b", &self.cookie_b),
         ]
         .join("; ")
     }
@@ -88,6 +90,7 @@ impl FurAffinity {
 
         self.client
             .get(url)
+            .header(header::USER_AGENT, &self.user_agent)
             .header(header::COOKIE, self.get_cookies())
             .send()
     }
@@ -111,9 +114,8 @@ impl FurAffinity {
             .value()
             .attr("href")
             .expect("unable to get href")
-            .split("/")
-            .into_iter()
-            .filter(|part| part.len() > 0)
+            .split('/')
+            .filter(|part| !part.is_empty())
             .last()
             .expect("no id found");
 
@@ -162,16 +164,14 @@ fn extract_url(elem: scraper::ElementRef, attr: &'static str) -> (String, String
             .value()
             .attr(attr)
             .expect("unable to get src attribute");
-    let url_ext = url.split(".").last().unwrap_or("a").to_string();
-    let filename = url.split("/").last().unwrap().to_string();
+    let url_ext = url.split('.').last().unwrap_or("a").to_string();
+    let filename = url.split('/').last().unwrap().to_string();
 
     (url, url_ext, filename)
 }
 
 pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error> {
     let document = scraper::Html::parse_document(page);
-
-    // println!("{}", document.root_element().html());
 
     if document.select(&ERROR_MESSAGE).next().is_some() {
         return Ok(None);
@@ -206,8 +206,8 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         None => return Err(Error::new("unable to select posted at", false)),
     };
 
-    let tags = document.select(&TAGS).into_iter().collect::<Vec<_>>();
-    let tags: Vec<String> = tags.into_iter().map(|elem| join_text_nodes(elem)).collect();
+    let tags = document.select(&TAGS).collect::<Vec<_>>();
+    let tags: Vec<String> = tags.into_iter().map(join_text_nodes).collect();
 
     let description = match document.select(&DESCRIPTION).next() {
         Some(description) => description.inner_html(),
