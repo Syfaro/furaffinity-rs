@@ -1,3 +1,5 @@
+#![feature(try_trait)]
+
 use lazy_static::lazy_static;
 use scraper::Selector;
 
@@ -56,6 +58,18 @@ impl From<image::ImageError> for Error {
     }
 }
 
+impl From<std::option::NoneError> for Error {
+    fn from(_error: std::option::NoneError) -> Self {
+        Self::new("unable to find value", true)
+    }
+}
+
+impl From<std::num::ParseIntError> for Error {
+    fn from(_error: std::num::ParseIntError) -> Self {
+        Self::new("value was not number", false)
+    }
+}
+
 pub struct FurAffinity {
     cookie_a: String,
     cookie_b: String,
@@ -105,21 +119,16 @@ impl FurAffinity {
         }
 
         let document = scraper::Html::parse_document(&page.text()?);
-        let latest = document
-            .select(&LATEST_SUBMISSION)
-            .next()
-            .expect("unable to get latest submission");
+        let latest = document.select(&LATEST_SUBMISSION).next()?;
 
         let id = latest
             .value()
-            .attr("href")
-            .expect("unable to get href")
+            .attr("href")?
             .split('/')
             .filter(|part| !part.is_empty())
-            .last()
-            .expect("no id found");
+            .last()?;
 
-        Ok(id.parse().expect("unable to get id from href"))
+        Ok(id.parse()?)
     }
 
     pub fn get_submission(&self, id: i32) -> Result<Option<Submission>, Error> {
