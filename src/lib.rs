@@ -292,6 +292,16 @@ pub enum Content {
     Flash(String),
 }
 
+impl Content {
+    /// Extract URL from any type of Content.
+    pub fn url(&self) -> String {
+        match self {
+            Content::Image(url) => url.clone(),
+            Content::Flash(url) => url.clone(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Submission {
     pub id: i32,
