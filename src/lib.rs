@@ -99,7 +99,7 @@ impl FurAffinity {
         .join("; ")
     }
 
-    pub fn load_page(&self, url: &str) -> reqwest::Result<reqwest::Response> {
+    pub async fn load_page(&self, url: &str) -> reqwest::Result<reqwest::Response> {
         use reqwest::header;
 
         self.client
@@ -107,10 +107,12 @@ impl FurAffinity {
             .header(header::USER_AGENT, &self.user_agent)
             .header(header::COOKIE, self.get_cookies())
             .send()
+            .await
     }
 
-    pub fn latest_id(&self) -> Result<i32, Error> {
-        let mut page = self.load_page("https://www.furaffinity.net/")?;
+    pub async fn latest_id(&self) -> Result<i32, Error> {
+        let page = self.load_page("https://www.furaffinity.net/").await?;
+
         if page.status().is_server_error() {
             return Err(Error::new(
                 format!("got server error: {}", page.status()),
@@ -118,7 +120,7 @@ impl FurAffinity {
             ));
         }
 
-        let document = scraper::Html::parse_document(&page.text()?);
+        let document = scraper::Html::parse_document(&page.text().await?);
         let latest = document.select(&LATEST_SUBMISSION).next()?;
 
         let id = latest
@@ -131,8 +133,11 @@ impl FurAffinity {
         Ok(id.parse()?)
     }
 
-    pub fn get_submission(&self, id: i32) -> Result<Option<Submission>, Error> {
-        let mut page = self.load_page(&format!("https://www.furaffinity.net/view/{}", id))?;
+    pub async fn get_submission(&self, id: i32) -> Result<Option<Submission>, Error> {
+        let page = self
+            .load_page(&format!("https://www.furaffinity.net/view/{}", id))
+            .await?;
+
         if page.status().is_server_error() {
             return Err(Error::new(
                 format!("got server error: {}", page.status()),
@@ -140,16 +145,17 @@ impl FurAffinity {
             ));
         }
 
-        parse_submission(id, &page.text()?)
+        parse_submission(id, &page.text().await?)
     }
 
-    pub fn calc_image_hash(&self, sub: Submission) -> Result<Submission, Error> {
+    pub async fn calc_image_hash(&self, sub: Submission) -> Result<Submission, Error> {
         let url = match &sub.content {
             Content::Flash(_) => return Ok(Submission { hash: None, ..sub }),
             Content::Image(url) => url.clone(),
         };
 
-        let mut image = self.load_page(&url)?;
+        let image = self.load_page(&url).await?;
+
         if image.status().is_server_error() {
             return Err(Error::new(
                 format!("got server error: {}", image.status()),
@@ -157,8 +163,7 @@ impl FurAffinity {
             ));
         }
 
-        let mut buf = vec![];
-        image.copy_to(&mut buf)?;
+        let buf = image.bytes().await?.to_vec();
 
         hash_image(&buf).map(|hash| Submission {
             hash: Some(hash),
@@ -173,6 +178,7 @@ fn extract_url(elem: scraper::ElementRef, attr: &'static str) -> (String, String
             .value()
             .attr(attr)
             .expect("unable to get src attribute");
+
     let url_ext = url.split('.').last().unwrap_or("a").to_string();
     let filename = url.split('/').last().unwrap().to_string();
 
