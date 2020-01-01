@@ -12,3 +12,6 @@ reqwest = { git = "https://github.com/seanmonstar/reqwest" }
 image = "0.22"
 chrono = "0.4"
 img_hash = "3.0.0"
+
+[dev-dependencies]
+tokio = "0.2.6"

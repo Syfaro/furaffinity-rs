@@ -6,18 +6,18 @@ use scraper::Selector;
 lazy_static! {
     static ref ERROR_MESSAGE: Selector = Selector::parse(".error-message-box").unwrap();
     // use inner text
-    static ref ARTIST: Selector = Selector::parse(".submission-artist-container a h2").unwrap();
+    static ref ARTIST: Selector = Selector::parse(".submission-id-sub-container .submission-title + a").unwrap();
     // use src attribute
     static ref IMAGE_URL: Selector = Selector::parse("#submissionImg").unwrap();
     static ref FLASH_OBJECT: Selector = Selector::parse("#flash_embed").unwrap();
     // use title attribute
-    static ref POSTED_AT: Selector = Selector::parse(".submission-title strong span.popup_date").unwrap();
+    static ref POSTED_AT: Selector = Selector::parse(".submission-id-sub-container strong span.popup_date").unwrap();
     // get all, use inner text
-    static ref TAGS: Selector = Selector::parse(".submission-sidebar .tags a").unwrap();
+    static ref TAGS: Selector = Selector::parse("section.tags-row a").unwrap();
     // html description, includes unneeded .submission-title div but unsure how best to remove
-    static ref DESCRIPTION: Selector = Selector::parse(".submission-description-container").unwrap();
+    static ref DESCRIPTION: Selector = Selector::parse(".section-body.bg2").unwrap();
     // submission rating, use inner text
-    static ref RATING: Selector = Selector::parse(".submission-description .rating-box").unwrap();
+    static ref RATING: Selector = Selector::parse(".stats-container .rating span.rating-box").unwrap();
 
     static ref LATEST_SUBMISSION: Selector = Selector::parse("#gallery-frontpage-submissions figure:first-child b u a").unwrap();
 
@@ -286,7 +286,7 @@ impl Rating {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Content {
     Image(String),
     Flash(String),
@@ -340,6 +340,20 @@ pub fn parse_date(date: &str) -> chrono::DateTime<chrono::Utc> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_load_submission() {
+        let mut runtime = tokio::runtime::Runtime::new().unwrap();
+
+        let fa = FurAffinity::new("", "", "furaffinity-rs test");
+        let sub = runtime.block_on(fa.get_submission(31209021))
+            .expect("unable to load test submission")
+            .expect("submission did not exist");
+
+        assert_eq!(sub.artist, "deadrussiansoul");
+        assert_eq!(sub.content, Content::Image("https://d.facdn.net/art/deadrussiansoul/1555431774/1555431774.deadrussiansoul_Скан_20190411__7_.png".into()));
+        assert_eq!(sub.tags, vec!["fox", "bilberry"]);
+    }
 
     #[test]
     fn test_parse_date() {
