@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use scraper::Selector;
 
 lazy_static! {
-    static ref ERROR_MESSAGE: Selector = Selector::parse(".error-message-box").unwrap();
+    static ref ERROR_MESSAGE: Selector = Selector::parse(".error-message-box, div#standardpage section.notice-message p.link-override").unwrap();
     // use inner text
     static ref ARTIST: Selector = Selector::parse(".submission-id-sub-container .submission-title + a").unwrap();
     // use src attribute
@@ -353,6 +353,11 @@ mod tests {
         assert_eq!(sub.artist, "deadrussiansoul");
         assert_eq!(sub.content, Content::Image("https://d.facdn.net/art/deadrussiansoul/1555431774/1555431774.deadrussiansoul_Скан_20190411__7_.png".into()));
         assert_eq!(sub.tags, vec!["fox", "bilberry"]);
+
+        let sub = runtime.block_on(fa.get_submission(34426892))
+            .expect("unable to load submission");
+
+        assert!(sub.is_none());
     }
 
     #[test]
