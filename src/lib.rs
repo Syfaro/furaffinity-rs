@@ -165,9 +165,17 @@ impl FurAffinity {
 
         let buf = image.bytes().await?.to_vec();
 
-        hash_image(&buf).map(|hash| Submission {
-            hash: Some(hash),
-            ..sub
+        hash_image(&buf).map(|hash| {
+            let mut bytes: [u8; 8] = [0; 8];
+            bytes.copy_from_slice(hash.as_bytes());
+
+            let num = i64::from_be_bytes(bytes);
+
+            Submission {
+                hash: Some(hash.to_base64()),
+                hash_num: Some(num),
+                ..sub
+            }
         })
     }
 }
@@ -235,6 +243,7 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         content,
         ext: url_ext,
         hash: None,
+        hash_num: None,
         filename,
         rating,
         posted_at: parse_date(&posted_at),
@@ -251,13 +260,13 @@ pub fn get_hasher() -> img_hash::Hasher {
         .to_hasher()
 }
 
-pub fn hash_image(image: &[u8]) -> Result<String, Error> {
+pub fn hash_image(image: &[u8]) -> Result<img_hash::ImageHash, Error> {
     let hasher = get_hasher();
 
     let image = image::load_from_memory(image)?;
     let hash = hasher.hash_image(&image);
 
-    Ok(hash.to_base64())
+    Ok(hash)
 }
 
 #[derive(Clone, Debug)]
@@ -309,6 +318,7 @@ pub struct Submission {
     pub content: Content,
     pub ext: String,
     pub hash: Option<String>,
+    pub hash_num: Option<i64>,
     pub filename: String,
     pub rating: Rating,
     pub posted_at: chrono::DateTime<chrono::Utc>,
@@ -346,7 +356,8 @@ mod tests {
         let mut runtime = tokio::runtime::Runtime::new().unwrap();
 
         let fa = FurAffinity::new("", "", "furaffinity-rs test");
-        let sub = runtime.block_on(fa.get_submission(31209021))
+        let sub = runtime
+            .block_on(fa.get_submission(31209021))
             .expect("unable to load test submission")
             .expect("submission did not exist");
 
@@ -354,7 +365,8 @@ mod tests {
         assert_eq!(sub.content, Content::Image("https://d.facdn.net/art/deadrussiansoul/1555431774/1555431774.deadrussiansoul_Скан_20190411__7_.png".into()));
         assert_eq!(sub.tags, vec!["fox", "bilberry"]);
 
-        let sub = runtime.block_on(fa.get_submission(34426892))
+        let sub = runtime
+            .block_on(fa.get_submission(34426892))
             .expect("unable to load submission");
 
         assert!(sub.is_none());
