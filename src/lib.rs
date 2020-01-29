@@ -44,17 +44,13 @@ impl Error {
 
 impl From<reqwest::Error> for Error {
     fn from(error: reqwest::Error) -> Self {
-        use std::error::Error;
-
-        Self::new(error.description(), true)
+        Self::new(error.to_string(), true)
     }
 }
 
 impl From<image::ImageError> for Error {
     fn from(error: image::ImageError) -> Self {
-        use std::error::Error;
-
-        Self::new(error.description(), false)
+        Self::new(error.to_string(), false)
     }
 }
 
@@ -252,15 +248,15 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
     }))
 }
 
-pub fn get_hasher() -> img_hash::Hasher {
-    img_hash::HasherConfig::new()
+pub fn get_hasher() -> img_hash::Hasher<[u8; 8]> {
+    img_hash::HasherConfig::with_bytes_type::<[u8; 8]>()
         .hash_alg(img_hash::HashAlg::Gradient)
         .hash_size(8, 8)
         .preproc_dct()
         .to_hasher()
 }
 
-pub fn hash_image(image: &[u8]) -> Result<img_hash::ImageHash, Error> {
+pub fn hash_image(image: &[u8]) -> Result<img_hash::ImageHash<[u8; 8]>, Error> {
     let hasher = get_hasher();
 
     let image = image::load_from_memory(image)?;
