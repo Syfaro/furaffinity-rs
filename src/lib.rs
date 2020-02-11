@@ -15,7 +15,7 @@ lazy_static! {
     // get all, use inner text
     static ref TAGS: Selector = Selector::parse("section.tags-row a").unwrap();
     // html description, includes unneeded .submission-title div but unsure how best to remove
-    static ref DESCRIPTION: Selector = Selector::parse(".section-body.bg2").unwrap();
+    static ref DESCRIPTION: Selector = Selector::parse(".submission-content section").unwrap();
     // submission rating, use inner text
     static ref RATING: Selector = Selector::parse(".stats-container .rating span.rating-box").unwrap();
 
