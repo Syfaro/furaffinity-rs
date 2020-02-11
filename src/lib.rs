@@ -4,6 +4,8 @@ use lazy_static::lazy_static;
 use scraper::Selector;
 
 lazy_static! {
+    static ref PAGE_TITLE: Selector = Selector::parse("title").unwrap();
+
     static ref ERROR_MESSAGE: Selector = Selector::parse(".error-message-box, div#standardpage section.notice-message p.link-override").unwrap();
     // use inner text
     static ref ARTIST: Selector = Selector::parse(".submission-id-sub-container .submission-title + a").unwrap();
@@ -192,6 +194,15 @@ fn extract_url(elem: scraper::ElementRef, attr: &'static str) -> (String, String
 pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error> {
     let document = scraper::Html::parse_document(page);
 
+    let title_system_error = document.select(&PAGE_TITLE)
+        .next()
+        .map(|elem| join_text_nodes(elem) == "System Error")
+        .unwrap_or(false);
+
+    if title_system_error {
+        return Ok(None);
+    }
+
     if document.select(&ERROR_MESSAGE).next().is_some() {
         return Ok(None);
     }
@@ -347,13 +358,12 @@ pub fn parse_date(date: &str) -> chrono::DateTime<chrono::Utc> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_load_submission() {
-        let mut runtime = tokio::runtime::Runtime::new().unwrap();
-
+    #[tokio::test]
+    async fn test_load_submission() {
         let fa = FurAffinity::new("", "", "furaffinity-rs test");
-        let sub = runtime
-            .block_on(fa.get_submission(31209021))
+        let sub = fa
+            .get_submission(31209021)
+            .await
             .expect("unable to load test submission")
             .expect("submission did not exist");
 
@@ -361,8 +371,16 @@ mod tests {
         assert_eq!(sub.content, Content::Image("https://d.facdn.net/art/deadrussiansoul/1555431774/1555431774.deadrussiansoul_Скан_20190411__7_.png".into()));
         assert_eq!(sub.tags, vec!["fox", "bilberry"]);
 
-        let sub = runtime
-            .block_on(fa.get_submission(34426892))
+        let sub = fa
+            .get_submission(34426892)
+            .await
+            .expect("unable to load submission");
+
+        assert!(sub.is_none());
+
+        let sub = fa
+            .get_submission(34999322)
+            .await
             .expect("unable to load submission");
 
         assert!(sub.is_none());
