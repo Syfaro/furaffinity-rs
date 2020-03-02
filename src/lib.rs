@@ -2,6 +2,7 @@
 
 use lazy_static::lazy_static;
 use scraper::Selector;
+use std::collections::HashMap;
 
 lazy_static! {
     static ref PAGE_TITLE: Selector = Selector::parse("title").unwrap();
@@ -68,11 +69,15 @@ impl From<std::num::ParseIntError> for Error {
     }
 }
 
-pub struct FurAffinity {
-    cookie_a: String,
-    cookie_b: String,
-    user_agent: String,
+type Cookies = HashMap<String, String>;
 
+pub struct FurAffinity {
+    #[cfg(feature = "cloudflare-bypass")]
+    cookies: tokio::sync::RwLock<Cookies>,
+    #[cfg(not(feature = "cloudflare-bypass"))]
+    cookies: Cookies,
+
+    user_agent: String,
     client: reqwest::Client,
 }
 
@@ -81,31 +86,82 @@ impl FurAffinity {
     where
         T: Into<String>,
     {
+        let mut cookies = HashMap::new();
+        cookies.insert("a".into(), cookie_a.into());
+        cookies.insert("b".into(), cookie_b.into());
+
+        #[cfg(feature = "cloudflare-bypass")]
+        let cookies = tokio::sync::RwLock::new(cookies);
+
         Self {
-            cookie_a: cookie_a.into(),
-            cookie_b: cookie_b.into(),
+            cookies,
             user_agent: user_agent.into(),
             client: reqwest::Client::new(),
         }
     }
 
-    fn get_cookies(&self) -> String {
-        [
-            build_cookie("a", &self.cookie_a),
-            build_cookie("b", &self.cookie_b),
-        ]
-        .join("; ")
+    async fn get_cookies(&self) -> String {
+        #[cfg(feature = "cloudflare-bypass")]
+        let cookies = self.cookies.read().await;
+        #[cfg(not(feature = "cloudflare-bypass"))]
+        let cookies = &self.cookies;
+
+        cookies
+            .iter()
+            .map(|(name, value)| build_cookie(name, value))
+            .collect::<Vec<_>>()
+            .join(";")
     }
 
     pub async fn load_page(&self, url: &str) -> reqwest::Result<reqwest::Response> {
         use reqwest::header;
 
-        self.client
+        let res = self
+            .client
             .get(url)
             .header(header::USER_AGENT, &self.user_agent)
-            .header(header::COOKIE, self.get_cookies())
+            .header(header::COOKIE, self.get_cookies().await)
             .send()
-            .await
+            .await?;
+
+        #[cfg(feature = "cloudflare-bypass")]
+        let res = {
+            let status = res.status();
+            if status != 429 && status != 503 {
+                res
+            } else {
+                let cookie_url = url.to_owned();
+                let user_agent = self.user_agent.clone();
+
+                let cfscrape::CfscrapeData { cookies, .. } =
+                    tokio::task::spawn_blocking(move || {
+                        cfscrape::get_cookie_string(&cookie_url, Some(&user_agent))
+                            .expect("Unable to get cookie string")
+                    })
+                    .await
+                    .expect("Unable to run blocking operation");
+
+                let mut lock = self.cookies.write().await;
+                let cookies = cookies.split("; ");
+                for cookie in cookies {
+                    let mut parts = cookie.split("=");
+                    let name = parts.next().expect("Missing cookie name");
+                    let value = parts.next().expect("Missing cookie value");
+
+                    lock.insert(name.into(), value.into());
+                }
+                drop(lock);
+
+                self.client
+                    .get(url)
+                    .header(header::USER_AGENT, &self.user_agent)
+                    .header(header::COOKIE, self.get_cookies().await)
+                    .send()
+                    .await?
+            }
+        };
+
+        Ok(res)
     }
 
     pub async fn latest_id(&self) -> Result<i32, Error> {
@@ -194,7 +250,8 @@ fn extract_url(elem: scraper::ElementRef, attr: &'static str) -> (String, String
 pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error> {
     let document = scraper::Html::parse_document(page);
 
-    let title_system_error = document.select(&PAGE_TITLE)
+    let title_system_error = document
+        .select(&PAGE_TITLE)
         .next()
         .map(|elem| join_text_nodes(elem) == "System Error")
         .unwrap_or(false);

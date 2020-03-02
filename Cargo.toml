@@ -13,5 +13,11 @@ image = "0.22"
 chrono = "0.4"
 img_hash = "3.0.0"
 
+cfscrape = { git = "https://git.huefox.com/syfaro/cfscrape-rust.git", optional = true }
+tokio = { version = "0.2", features = ["sync", "blocking"], optional = true }
+
 [dev-dependencies]
 tokio = { version = "0.2", features = ["macros"] }
+
+[features]
+cloudflare-bypass = ["cfscrape", "tokio"]
