@@ -13,7 +13,7 @@ image = "0.23"
 chrono = "0.4"
 img_hash = "3"
 
-cfscrape = { git = "https://git.huefox.com/syfaro/cfscrape-rust.git", optional = true }
+cfscrape = { git = "https://github.com/Syfaro/cfscrape-rs.git", optional = true }
 tokio = { version = "0.2", features = ["sync", "blocking"], optional = true }
 
 [dev-dependencies]
