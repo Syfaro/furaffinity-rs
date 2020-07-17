@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 lazy_static = "1"
-scraper = "0.11"
+scraper = "0.12"
 regex = "1"
 reqwest = "0.10"
 image = "0.23"
