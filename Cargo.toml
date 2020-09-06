@@ -12,6 +12,7 @@ reqwest = "0.10"
 image = "0.23"
 chrono = "0.4"
 img_hash = "3"
+sha2 = "0.9"
 
 cfscrape = { git = "https://github.com/Syfaro/cfscrape-rs.git", optional = true }
 tokio = { version = "0.2", features = ["sync", "blocking"], optional = true }

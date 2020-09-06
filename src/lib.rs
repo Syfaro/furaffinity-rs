@@ -144,7 +144,7 @@ impl FurAffinity {
                 let mut lock = self.cookies.write().await;
                 let cookies = cookies.split("; ");
                 for cookie in cookies {
-                    let mut parts = cookie.split("=");
+                    let mut parts = cookie.split('=');
                     let name = parts.next().expect("Missing cookie name");
                     let value = parts.next().expect("Missing cookie value");
 
@@ -219,6 +219,12 @@ impl FurAffinity {
 
         let buf = image.bytes().await?.to_vec();
 
+        use sha2::Digest;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(&buf);
+        let result: [u8; 32] = hasher.finalize().into();
+        let result: Vec<u8> = result.to_vec();
+
         hash_image(&buf).map(|hash| {
             let mut bytes: [u8; 8] = [0; 8];
             bytes.copy_from_slice(hash.as_bytes());
@@ -228,6 +234,8 @@ impl FurAffinity {
             Submission {
                 hash: Some(hash.to_base64()),
                 hash_num: Some(num),
+                file_size: Some(buf.len()),
+                file_sha256: Some(result),
                 ..sub
             }
         })
@@ -313,6 +321,8 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         posted_at: parse_date(&posted_at),
         tags,
         description,
+        file_size: None,
+        file_sha256: None,
     }))
 }
 
@@ -388,6 +398,8 @@ pub struct Submission {
     pub posted_at: chrono::DateTime<chrono::Utc>,
     pub tags: Vec<String>,
     pub description: String,
+    pub file_size: Option<usize>,
+    pub file_sha256: Option<Vec<u8>>,
 }
 
 fn build_cookie(name: &str, value: &str) -> String {
