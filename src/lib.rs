@@ -236,6 +236,7 @@ impl FurAffinity {
                 hash_num: Some(num),
                 file_size: Some(buf.len()),
                 file_sha256: Some(result),
+                file: Some(buf),
                 ..sub
             }
         })
@@ -323,6 +324,7 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         description,
         file_size: None,
         file_sha256: None,
+        file: None,
     }))
 }
 
@@ -398,6 +400,7 @@ pub struct Submission {
     pub posted_at: chrono::DateTime<chrono::Utc>,
     pub tags: Vec<String>,
     pub description: String,
+    pub file: Option<Vec<u8>>,
     pub file_size: Option<usize>,
     pub file_sha256: Option<Vec<u8>>,
 }
@@ -453,6 +456,21 @@ mod tests {
             .expect("unable to load submission");
 
         assert!(sub.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_hashing() {
+        let fa = FurAffinity::new("", "", "furaffinity-rs test");
+        let sub = fa
+            .get_submission(31209021)
+            .await
+            .expect("unable to load test submission")
+            .expect("submission did not exist");
+
+        assert!(sub.file.is_none(), "file was downloaded before expected");
+        let sub = fa.calc_image_hash(sub).await.expect("unable to calculate image hash");
+        assert!(sub.file.is_some(), "file was not downloaded");
+        assert!(sub.file.unwrap().len() > 0, "file data was not populated");
     }
 
     #[test]
