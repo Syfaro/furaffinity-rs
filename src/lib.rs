@@ -1,5 +1,3 @@
-#![feature(try_trait)]
-
 use lazy_static::lazy_static;
 use scraper::Selector;
 use std::collections::HashMap;
@@ -54,12 +52,6 @@ impl From<reqwest::Error> for Error {
 impl From<image::ImageError> for Error {
     fn from(error: image::ImageError) -> Self {
         Self::new(error.to_string(), false)
-    }
-}
-
-impl From<std::option::NoneError> for Error {
-    fn from(_error: std::option::NoneError) -> Self {
-        Self::new("unable to find value", true)
     }
 }
 
@@ -175,14 +167,19 @@ impl FurAffinity {
         }
 
         let document = scraper::Html::parse_document(&page.text().await?);
-        let latest = document.select(&LATEST_SUBMISSION).next()?;
+        let latest = document
+            .select(&LATEST_SUBMISSION)
+            .next()
+            .ok_or(Error::new("value not found", false))?;
 
         let id = latest
             .value()
-            .attr("href")?
+            .attr("href")
+            .ok_or(Error::new("href not found", false))?
             .split('/')
             .filter(|part| !part.is_empty())
-            .last()?;
+            .last()
+            .ok_or(Error::new("part not found", false))?;
 
         Ok(id.parse()?)
     }
@@ -468,7 +465,10 @@ mod tests {
             .expect("submission did not exist");
 
         assert!(sub.file.is_none(), "file was downloaded before expected");
-        let sub = fa.calc_image_hash(sub).await.expect("unable to calculate image hash");
+        let sub = fa
+            .calc_image_hash(sub)
+            .await
+            .expect("unable to calculate image hash");
         assert!(sub.file.is_some(), "file was not downloaded");
         assert!(sub.file.unwrap().len() > 0, "file data was not populated");
     }
