@@ -170,16 +170,16 @@ impl FurAffinity {
         let latest = document
             .select(&LATEST_SUBMISSION)
             .next()
-            .ok_or(Error::new("value not found", false))?;
+            .ok_or_else(|| Error::new("value not found", false))?;
 
         let id = latest
             .value()
             .attr("href")
-            .ok_or(Error::new("href not found", false))?
+            .ok_or_else(|| Error::new("href not found", false))?
             .split('/')
             .filter(|part| !part.is_empty())
             .last()
-            .ok_or(Error::new("part not found", false))?;
+            .ok_or_else(|| Error::new("part not found", false))?;
 
         Ok(id.parse()?)
     }
@@ -437,7 +437,7 @@ mod tests {
             .expect("submission did not exist");
 
         assert_eq!(sub.artist, "deadrussiansoul");
-        assert_eq!(sub.content, Content::Image("https://d.facdn.net/art/deadrussiansoul/1555431774/1555431774.deadrussiansoul_Скан_20190411__7_.png".into()));
+        assert_eq!(sub.content, Content::Image("https://d.furaffinity.net/art/deadrussiansoul/1555431774/1555431774.deadrussiansoul_Скан_20190411__7_.png".into()));
         assert_eq!(sub.tags, vec!["fox", "bilberry"]);
 
         let sub = fa

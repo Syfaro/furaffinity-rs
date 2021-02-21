@@ -8,17 +8,17 @@ edition = "2018"
 lazy_static = "1"
 scraper = "0.12"
 regex = "1"
-reqwest = "0.10"
+reqwest = "0.11"
 image = "0.23"
 chrono = "0.4"
 img_hash = "3"
 sha2 = "0.9"
 
-cfscrape = { git = "https://github.com/Syfaro/cfscrape-rs.git", optional = true }
-tokio = { version = "0.2", features = ["sync", "blocking"], optional = true }
+cfscrape = { git = "https://github.com/Syfaro/cfscrape-rs", optional = true }
+tokio = { version = "1", features = ["sync"], optional = true }
 
 [dev-dependencies]
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "1", features = ["macros"] }
 
 [features]
 cloudflare-bypass = ["cfscrape", "tokio"]
