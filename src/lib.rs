@@ -74,7 +74,7 @@ pub struct FurAffinity {
 }
 
 impl FurAffinity {
-    pub fn new<T>(cookie_a: T, cookie_b: T, user_agent: T) -> Self
+    pub fn new<T>(cookie_a: T, cookie_b: T, user_agent: T, client: Option<reqwest::Client>) -> Self
     where
         T: Into<String>,
     {
@@ -88,7 +88,7 @@ impl FurAffinity {
         Self {
             cookies,
             user_agent: user_agent.into(),
-            client: reqwest::Client::new(),
+            client: client.unwrap_or_default(),
         }
     }
 
@@ -429,7 +429,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_submission() {
-        let fa = FurAffinity::new("", "", "furaffinity-rs test");
+        let fa = FurAffinity::new("", "", "furaffinity-rs test", None);
         let sub = fa
             .get_submission(31209021)
             .await
@@ -457,7 +457,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_hashing() {
-        let fa = FurAffinity::new("", "", "furaffinity-rs test");
+        let fa = FurAffinity::new("", "", "furaffinity-rs test", None);
         let sub = fa
             .get_submission(31209021)
             .await
