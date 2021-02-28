@@ -23,6 +23,9 @@ lazy_static! {
     static ref LATEST_SUBMISSION: Selector = Selector::parse("#gallery-frontpage-submissions figure:first-child b u a").unwrap();
 
     static ref DATE_CLEANER: regex::Regex = regex::Regex::new(r"(\d{1,2})(st|nd|rd|th)").unwrap();
+
+    static ref ONLINE_STATS_ELEMENT: Selector = Selector::parse(".online-stats").unwrap();
+    static ref ONLINE_NUMBER: regex::Regex = regex::Regex::new(r"(\d+)").unwrap();
 }
 
 #[derive(Debug)]
@@ -156,7 +159,7 @@ impl FurAffinity {
         Ok(res)
     }
 
-    pub async fn latest_id(&self) -> Result<i32, Error> {
+    pub async fn latest_id(&self) -> Result<(i32, OnlineCounts), Error> {
         let page = self.load_page("https://www.furaffinity.net/").await?;
 
         if page.status().is_server_error() {
@@ -167,6 +170,28 @@ impl FurAffinity {
         }
 
         let document = scraper::Html::parse_document(&page.text().await?);
+
+        let online = document
+            .select(&ONLINE_STATS_ELEMENT)
+            .next()
+            .map(|elem| elem.text().collect::<String>());
+        let online = online.unwrap_or_default();
+        let numbers: Vec<usize> = ONLINE_NUMBER
+            .find_iter(&online)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .filter_map(|m| m.as_str().parse::<usize>().ok())
+            .collect();
+
+        let mut numbers = numbers.into_iter();
+
+        let online = OnlineCounts {
+            total: numbers.next().unwrap_or_default(),
+            guests: numbers.next().unwrap_or_default(),
+            registered: numbers.next().unwrap_or_default(),
+            other: numbers.next().unwrap_or_default(),
+        };
+
         let latest = document
             .select(&LATEST_SUBMISSION)
             .next()
@@ -181,7 +206,7 @@ impl FurAffinity {
             .last()
             .ok_or_else(|| Error::new("part not found", false))?;
 
-        Ok(id.parse()?)
+        Ok((id.parse()?, online))
     }
 
     pub async fn get_submission(&self, id: i32) -> Result<Option<Submission>, Error> {
@@ -402,6 +427,14 @@ pub struct Submission {
     pub file_sha256: Option<Vec<u8>>,
 }
 
+#[derive(Clone, Debug)]
+pub struct OnlineCounts {
+    pub total: usize,
+    pub guests: usize,
+    pub registered: usize,
+    pub other: usize,
+}
+
 fn build_cookie(name: &str, value: &str) -> String {
     format!("{}={}", name, value)
 }
@@ -426,6 +459,20 @@ pub fn parse_date(date: &str) -> chrono::DateTime<chrono::Utc> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_latest_id() {
+        let fa = FurAffinity::new("", "", "furaffinity-rs test", None);
+        let latest_id = fa.latest_id().await;
+
+        assert!(latest_id.is_ok(), "unable to get latest id");
+        let latest_id = latest_id.unwrap();
+        assert!(latest_id.0 > 4_000_000, "latest ID seemed to be incorrect");
+        assert!(
+            latest_id.1.other > 1_000,
+            "other online seemed to be incorrect"
+        );
+    }
 
     #[tokio::test]
     async fn test_load_submission() {
