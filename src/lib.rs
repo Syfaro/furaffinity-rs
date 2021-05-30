@@ -28,7 +28,8 @@ lazy_static! {
     static ref ONLINE_NUMBER: regex::Regex = regex::Regex::new(r"(\d+)").unwrap();
 }
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
+#[error("could not process submission: {message}")]
 pub struct Error {
     pub message: String,
     pub retry: bool,

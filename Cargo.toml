@@ -13,6 +13,7 @@ image = "0.23"
 chrono = "0.4"
 img_hash = "3"
 sha2 = "0.9"
+thiserror = "1"
 
 cfscrape = { git = "https://github.com/Syfaro/cfscrape-rs", optional = true }
 tokio = { version = "1", features = ["sync"], optional = true }
