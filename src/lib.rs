@@ -8,6 +8,8 @@ lazy_static! {
     static ref ERROR_MESSAGE: Selector = Selector::parse(".error-message-box, div#standardpage section.notice-message p.link-override").unwrap();
     // use inner text
     static ref ARTIST: Selector = Selector::parse(".submission-id-sub-container .submission-title + a").unwrap();
+    // use inner text
+    static ref TITLE: Selector = Selector::parse(".submission-title h2 p").unwrap();
     // use src attribute
     static ref IMAGE_URL: Selector = Selector::parse("#submissionImg").unwrap();
     static ref FLASH_OBJECT: Selector = Selector::parse("#flash_embed").unwrap();
@@ -296,6 +298,11 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         return Ok(None);
     }
 
+    let title = match document.select(&TITLE).next() {
+        Some(title) => join_text_nodes(title),
+        None => return Err(Error::new("unable to select title", false)),
+    };
+
     let artist = match document.select(&ARTIST).next() {
         Some(artist) => join_text_nodes(artist),
         None => return Err(Error::new("unable to select artist", false)),
@@ -335,6 +342,7 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
 
     Ok(Some(Submission {
         id,
+        title,
         artist,
         content,
         ext: url_ext,
@@ -413,6 +421,7 @@ impl Content {
 #[derive(Clone, Debug)]
 pub struct Submission {
     pub id: i32,
+    pub title: String,
     pub artist: String,
     pub content: Content,
     pub ext: String,
@@ -484,6 +493,7 @@ mod tests {
             .expect("unable to load test submission")
             .expect("submission did not exist");
 
+        assert_eq!(sub.title, "Bilberry fox");
         assert_eq!(sub.artist, "deadrussiansoul");
         assert_eq!(sub.content, Content::Image("https://d.furaffinity.net/art/deadrussiansoul/1555431774/1555431774.deadrussiansoul_Скан_20190411__7_.png".into()));
         assert_eq!(sub.tags, vec!["fox", "bilberry"]);
