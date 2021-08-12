@@ -70,9 +70,6 @@ impl From<std::num::ParseIntError> for Error {
 type Cookies = HashMap<String, String>;
 
 pub struct FurAffinity {
-    #[cfg(feature = "cloudflare-bypass")]
-    cookies: tokio::sync::RwLock<Cookies>,
-    #[cfg(not(feature = "cloudflare-bypass"))]
     cookies: Cookies,
 
     user_agent: String,
@@ -88,9 +85,6 @@ impl FurAffinity {
         cookies.insert("a".into(), cookie_a.into());
         cookies.insert("b".into(), cookie_b.into());
 
-        #[cfg(feature = "cloudflare-bypass")]
-        let cookies = tokio::sync::RwLock::new(cookies);
-
         Self {
             cookies,
             user_agent: user_agent.into(),
@@ -99,12 +93,7 @@ impl FurAffinity {
     }
 
     async fn get_cookies(&self) -> String {
-        #[cfg(feature = "cloudflare-bypass")]
-        let cookies = self.cookies.read().await;
-        #[cfg(not(feature = "cloudflare-bypass"))]
-        let cookies = &self.cookies;
-
-        cookies
+        self.cookies
             .iter()
             .map(|(name, value)| build_cookie(name, value))
             .collect::<Vec<_>>()
@@ -114,52 +103,12 @@ impl FurAffinity {
     pub async fn load_page(&self, url: &str) -> reqwest::Result<reqwest::Response> {
         use reqwest::header;
 
-        let res = self
-            .client
+        self.client
             .get(url)
             .header(header::USER_AGENT, &self.user_agent)
             .header(header::COOKIE, self.get_cookies().await)
             .send()
-            .await?;
-
-        #[cfg(feature = "cloudflare-bypass")]
-        let res = {
-            let status = res.status();
-            if status != 429 && status != 503 {
-                res
-            } else {
-                let cookie_url = url.to_owned();
-                let user_agent = self.user_agent.clone();
-
-                let cfscrape::CfscrapeData { cookies, .. } =
-                    tokio::task::spawn_blocking(move || {
-                        cfscrape::get_cookie_string(&cookie_url, Some(&user_agent))
-                            .expect("Unable to get cookie string")
-                    })
-                    .await
-                    .expect("Unable to run blocking operation");
-
-                let mut lock = self.cookies.write().await;
-                let cookies = cookies.split("; ");
-                for cookie in cookies {
-                    let mut parts = cookie.split('=');
-                    let name = parts.next().expect("Missing cookie name");
-                    let value = parts.next().expect("Missing cookie value");
-
-                    lock.insert(name.into(), value.into());
-                }
-                drop(lock);
-
-                self.client
-                    .get(url)
-                    .header(header::USER_AGENT, &self.user_agent)
-                    .header(header::COOKIE, self.get_cookies().await)
-                    .send()
-                    .await?
-            }
-        };
-
-        Ok(res)
+            .await
     }
 
     pub async fn latest_id(&self) -> Result<(i32, OnlineCounts), Error> {
@@ -487,6 +436,7 @@ mod tests {
     #[tokio::test]
     async fn test_load_submission() {
         let fa = FurAffinity::new("", "", "furaffinity-rs test", None);
+
         let sub = fa
             .get_submission(31209021)
             .await
