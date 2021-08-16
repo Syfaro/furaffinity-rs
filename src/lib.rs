@@ -217,17 +217,17 @@ impl FurAffinity {
     }
 }
 
-fn extract_url(elem: scraper::ElementRef, attr: &'static str) -> (String, String, String) {
+fn extract_url(elem: scraper::ElementRef, attr: &'static str) -> Option<(String, String, String)> {
     let url = "https:".to_owned()
         + elem
             .value()
             .attr(attr)
             .expect("unable to get src attribute");
 
-    let url_ext = url.split('.').last().unwrap_or("a").to_string();
-    let filename = url.split('/').last().unwrap().to_string();
+    let url_ext = url.split('.').last()?.to_string();
+    let filename = url.split('/').last()?.to_string();
 
-    (url, url_ext, filename)
+    Some((url, url_ext, filename))
 }
 
 pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error> {
@@ -259,11 +259,13 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
 
     let (content, url_ext, filename) = {
         if let Some(url) = document.select(&IMAGE_URL).next() {
-            let (url, url_ext, filename) = extract_url(url, "src");
+            let (url, url_ext, filename) =
+                extract_url(url, "src").ok_or_else(|| Error::new("missing image url", true))?;
 
             (Content::Image(url), url_ext, filename)
         } else if let Some(url) = document.select(&FLASH_OBJECT).next() {
-            let (url, url_ext, filename) = extract_url(url, "data");
+            let (url, url_ext, filename) =
+                extract_url(url, "data").ok_or_else(|| Error::new("missing flash url", true))?;
 
             (Content::Flash(url), url_ext, filename)
         } else {
@@ -272,12 +274,17 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
     };
 
     let rating = match document.select(&RATING).next() {
-        Some(rating) => Rating::parse(&join_text_nodes(rating)).unwrap(),
+        Some(rating) => Rating::parse(&join_text_nodes(rating))
+            .ok_or_else(|| Error::new("missing rating", true))?,
         None => return Err(Error::new("unable to select submission rating", false)),
     };
 
     let posted_at = match document.select(&POSTED_AT).next() {
-        Some(posted_at) => posted_at.value().attr("title").unwrap().to_string(),
+        Some(posted_at) => posted_at
+            .value()
+            .attr("title")
+            .ok_or_else(|| Error::new("missing title", true))?
+            .to_string(),
         None => return Err(Error::new("unable to select posted at", false)),
     };
 
