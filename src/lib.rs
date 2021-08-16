@@ -218,11 +218,7 @@ impl FurAffinity {
 }
 
 fn extract_url(elem: scraper::ElementRef, attr: &'static str) -> Option<(String, String, String)> {
-    let url = "https:".to_owned()
-        + elem
-            .value()
-            .attr(attr)
-            .expect("unable to get src attribute");
+    let url = "https:".to_owned() + elem.value().attr(attr)?;
 
     let url_ext = url.split('.').last()?.to_string();
     let filename = url.split('/').last()?.to_string();
@@ -306,7 +302,7 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         hash_num: None,
         filename,
         rating,
-        posted_at: parse_date(&posted_at),
+        posted_at: parse_date(&posted_at)?,
         tags,
         description,
         file_size: None,
@@ -409,7 +405,7 @@ fn join_text_nodes(elem: scraper::ElementRef) -> String {
     elem.text().collect::<Vec<_>>().join("").trim().to_string()
 }
 
-pub fn parse_date(date: &str) -> chrono::DateTime<chrono::Utc> {
+pub fn parse_date(date: &str) -> Result<chrono::DateTime<chrono::Utc>, Error> {
     use chrono::offset::TimeZone;
 
     let date_str = DATE_CLEANER.replace(date, "$1");
@@ -417,9 +413,9 @@ pub fn parse_date(date: &str) -> chrono::DateTime<chrono::Utc> {
     let zone = chrono::FixedOffset::west(5 * 3600);
     let date = zone
         .datetime_from_str(&date_str, "%b %e, %Y %l:%M %p")
-        .expect("unable to parse date");
+        .map_err(|_err| Error::new("unable to parse date", false))?;
 
-    date.with_timezone(&chrono::Utc)
+    Ok(date.with_timezone(&chrono::Utc))
 }
 
 #[cfg(test)]
@@ -492,7 +488,7 @@ mod tests {
     fn test_parse_date() {
         use chrono::offset::TimeZone;
 
-        let parsed = parse_date("Mar 23rd, 2019 12:46 AM");
+        let parsed = parse_date("Mar 23rd, 2019 12:46 AM").unwrap();
         assert_eq!(parsed, chrono::Utc.ymd(2019, 3, 23).and_hms(5, 46, 0));
     }
 }
