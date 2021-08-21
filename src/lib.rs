@@ -100,7 +100,7 @@ impl FurAffinity {
             .join(";")
     }
 
-    pub async fn load_page(&self, url: &str) -> Result<reqwest::Response, Error> {
+    pub async fn load_page(&self, url: &str) -> reqwest::Result<reqwest::Response> {
         use reqwest::header;
 
         self.client
@@ -109,7 +109,6 @@ impl FurAffinity {
             .header(header::COOKIE, self.get_cookies().await)
             .send()
             .await
-            .map_err(|err| err.into())
     }
 
     pub async fn latest_id(&self) -> Result<(i32, OnlineCounts), Error> {
@@ -175,6 +174,46 @@ impl FurAffinity {
         }
 
         parse_submission(id, &page.text().await?)
+    }
+
+    pub async fn calc_image_hash(&self, sub: Submission) -> Result<Submission, Error> {
+        let url = match &sub.content {
+            Content::Flash(_) => return Ok(Submission { hash: None, ..sub }),
+            Content::Image(url) => url.clone(),
+        };
+
+        let image = self.load_page(&url).await?;
+
+        if image.status().is_server_error() {
+            return Err(Error::new(
+                format!("got server error: {}", image.status()),
+                true,
+            ));
+        }
+
+        let buf = image.bytes().await?.to_vec();
+
+        use sha2::Digest;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(&buf);
+        let result: [u8; 32] = hasher.finalize().into();
+        let result: Vec<u8> = result.to_vec();
+
+        hash_image(&buf).map(|hash| {
+            let mut bytes: [u8; 8] = [0; 8];
+            bytes.copy_from_slice(hash.as_bytes());
+
+            let num = i64::from_be_bytes(bytes);
+
+            Submission {
+                hash: Some(hash.to_base64()),
+                hash_num: Some(num),
+                file_size: Some(buf.len()),
+                file_sha256: Some(result),
+                file: Some(buf),
+                ..sub
+            }
+        })
     }
 }
 
@@ -270,6 +309,23 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         file_sha256: None,
         file: None,
     }))
+}
+
+pub fn get_hasher() -> img_hash::Hasher<[u8; 8]> {
+    img_hash::HasherConfig::with_bytes_type::<[u8; 8]>()
+        .hash_alg(img_hash::HashAlg::Gradient)
+        .hash_size(8, 8)
+        .preproc_dct()
+        .to_hasher()
+}
+
+pub fn hash_image(image: &[u8]) -> Result<img_hash::ImageHash<[u8; 8]>, Error> {
+    let hasher = get_hasher();
+
+    let image = image::load_from_memory(image)?;
+    let hash = hasher.hash_image(&image);
+
+    Ok(hash)
 }
 
 #[derive(Clone, Debug)]
@@ -408,6 +464,24 @@ mod tests {
             .expect("unable to load submission");
 
         assert!(sub.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_hashing() {
+        let fa = FurAffinity::new("", "", "furaffinity-rs test", None);
+        let sub = fa
+            .get_submission(31209021)
+            .await
+            .expect("unable to load test submission")
+            .expect("submission did not exist");
+
+        assert!(sub.file.is_none(), "file was downloaded before expected");
+        let sub = fa
+            .calc_image_hash(sub)
+            .await
+            .expect("unable to calculate image hash");
+        assert!(sub.file.is_some(), "file was not downloaded");
+        assert!(sub.file.unwrap().len() > 0, "file data was not populated");
     }
 
     #[test]
