@@ -100,7 +100,7 @@ impl FurAffinity {
             .join(";")
     }
 
-    pub async fn load_page(&self, url: &str) -> reqwest::Result<reqwest::Response> {
+    pub async fn load_page(&self, url: &str) -> Result<reqwest::Response, Error> {
         use reqwest::header;
 
         self.client
@@ -109,6 +109,7 @@ impl FurAffinity {
             .header(header::COOKIE, self.get_cookies().await)
             .send()
             .await
+            .map_err(|err| err.into())
     }
 
     pub async fn latest_id(&self) -> Result<(i32, OnlineCounts), Error> {
