@@ -28,6 +28,10 @@ lazy_static! {
 
     static ref ONLINE_STATS_ELEMENT: Selector = Selector::parse(".online-stats").unwrap();
     static ref ONLINE_NUMBER: regex::Regex = regex::Regex::new(r"(\d+)").unwrap();
+
+    static ref NAV_LINKS: Selector = Selector::parse(".parsed_nav_links").unwrap();
+    static ref LINK: Selector = Selector::parse("a").unwrap();
+    static ref LINK_ID: regex::Regex = regex::Regex::new(r"/view/(\d+)").unwrap();
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -128,14 +132,11 @@ impl FurAffinity {
             .next()
             .map(|elem| elem.text().collect::<String>());
         let online = online.unwrap_or_default();
-        let numbers: Vec<usize> = ONLINE_NUMBER
+        let mut numbers = ONLINE_NUMBER
             .find_iter(&online)
             .collect::<Vec<_>>()
             .into_iter()
-            .filter_map(|m| m.as_str().parse::<usize>().ok())
-            .collect();
-
-        let mut numbers = numbers.into_iter();
+            .filter_map(|m| m.as_str().parse::<usize>().ok());
 
         let online = OnlineCounts {
             total: numbers.next().unwrap_or_default(),
@@ -284,8 +285,11 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         None => return Err(Error::new("unable to select posted at", false)),
     };
 
-    let tags = document.select(&TAGS).collect::<Vec<_>>();
-    let tags: Vec<String> = tags.into_iter().map(join_text_nodes).collect();
+    let tags: Vec<String> = document
+        .select(&TAGS)
+        .into_iter()
+        .map(join_text_nodes)
+        .collect();
 
     let description = match document.select(&DESCRIPTION).next() {
         Some(description) => description.inner_html(),
@@ -309,6 +313,32 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         file_sha256: None,
         file: None,
     }))
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct NavLinks {
+    pub prev: Option<i32>,
+    pub first: Option<i32>,
+    pub next: Option<i32>,
+}
+
+fn parse_nav_links(description: &str) -> Option<NavLinks> {
+    let mut parts = description.split('|');
+
+    Some(NavLinks {
+        prev: get_link_if_exists(parts.next()?),
+        first: get_link_if_exists(parts.next()?),
+        next: get_link_if_exists(parts.next()?),
+    })
+}
+
+fn get_link_if_exists(text: &str) -> Option<i32> {
+    let fragment = scraper::Html::parse_fragment(text);
+    let link = fragment.select(&LINK).next()?;
+    let href = link.value().attr("href")?;
+
+    let id = LINK_ID.captures(href)?;
+    id.get(1).and_then(|id| id.as_str().parse().ok())
 }
 
 pub fn get_hasher() -> img_hash::Hasher<[u8; 8]> {
@@ -387,6 +417,15 @@ pub struct Submission {
     pub file: Option<Vec<u8>>,
     pub file_size: Option<usize>,
     pub file_sha256: Option<Vec<u8>>,
+}
+
+impl Submission {
+    pub fn nav_links(&self) -> Option<NavLinks> {
+        let description = scraper::Html::parse_fragment(&self.description);
+        let parsed_links_section = description.select(&NAV_LINKS).next()?;
+
+        parse_nav_links(&parsed_links_section.inner_html())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -490,5 +529,78 @@ mod tests {
 
         let parsed = parse_date("Mar 23rd, 2019 12:46 AM").unwrap();
         assert_eq!(parsed, chrono::Utc.ymd(2019, 3, 23).and_hms(5, 46, 0));
+    }
+
+    #[test]
+    fn test_parse_nav_links() {
+        let no_prev = r#"<span class="parsed_nav_links">
+            &lt;&lt;&lt;&nbsp;PREV&nbsp;|&nbsp;
+            <a href="/view/37545307">FIRST</a>
+            &nbsp;|&nbsp;
+            <a href="/view/37545317">NEXT&nbsp;&gt;&gt;&gt;</a>
+        </span>"#;
+
+        assert_eq!(
+            Some(NavLinks {
+                prev: None,
+                first: Some(37545307),
+                next: Some(37545317),
+            }),
+            parse_nav_links(&no_prev)
+        );
+
+        let all_links = r#"<span class="parsed_nav_links">
+            <a href="/view/37545317">&lt;&lt;&lt;&nbsp;PREV</a>
+            &nbsp;|&nbsp;
+            <a href="/view/37545307">FIRST</a>
+            &nbsp;|&nbsp;
+            <a href="/view/37676046">NEXT&nbsp;&gt;&gt;&gt;</a>
+        </span>"#;
+
+        assert_eq!(
+            Some(NavLinks {
+                prev: Some(37545317),
+                first: Some(37545307),
+                next: Some(37676046),
+            }),
+            parse_nav_links(&all_links)
+        );
+
+        let no_next = r#"<span class="parsed_nav_links">
+            <a href="/view/38195654">&lt;&lt;&lt;&nbsp;PREV</a>
+            &nbsp;|&nbsp;
+            <a href="/view/37545307">FIRST</a>
+            &nbsp;|&nbsp;NEXT&nbsp;&gt;&gt;&gt;
+        </span>"#;
+
+        assert_eq!(
+            Some(NavLinks {
+                prev: Some(38195654),
+                first: Some(37545307),
+                next: None,
+            }),
+            parse_nav_links(&no_next)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_submission_nav_links() {
+        let fa = FurAffinity::new("", "", "furaffinity-rs test", None);
+
+        let sub = fa
+            .get_submission(38195654)
+            .await
+            .expect("unable to load test submission")
+            .expect("submission did not exist");
+
+        let nav_links = sub.nav_links().expect("submission should have nav links");
+        assert_eq!(
+            nav_links,
+            NavLinks {
+                prev: Some(38102162),
+                first: Some(37545307),
+                next: Some(38195685),
+            }
+        )
     }
 }
