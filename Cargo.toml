@@ -6,13 +6,13 @@ edition = "2018"
 
 [dependencies]
 lazy_static = "1"
-scraper = "0.12"
+scraper = "0.13"
 regex = "1"
 reqwest = "0.11"
 image = "0.23"
 chrono = "0.4"
 img_hash = "3"
-sha2 = "0.9"
+sha2 = "0.10"
 thiserror = "1"
 
 [dev-dependencies]
