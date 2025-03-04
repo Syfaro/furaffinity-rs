@@ -7,7 +7,7 @@ lazy_static! {
 
     static ref ERROR_MESSAGE: Selector = Selector::parse(".error-message-box, div#standardpage section.notice-message p.link-override").unwrap();
     // use inner text
-    static ref ARTIST: Selector = Selector::parse(".submission-id-sub-container .submission-title + a").unwrap();
+    static ref ARTIST: Selector = Selector::parse(".submission-id-sub-container .submission-title + span a").unwrap();
     // use inner text
     static ref TITLE: Selector = Selector::parse(".submission-title h2 p").unwrap();
     // use src attribute
@@ -16,7 +16,7 @@ lazy_static! {
     // use title attribute
     static ref POSTED_AT: Selector = Selector::parse(".submission-id-sub-container strong span.popup_date").unwrap();
     // get all, use inner text
-    static ref TAGS: Selector = Selector::parse("section.tags-row a").unwrap();
+    static ref TAGS: Selector = Selector::parse("section.tags-row a:not(.tag-block)").unwrap();
     // html description, includes unneeded .submission-title div but unsure how best to remove
     static ref DESCRIPTION: Selector = Selector::parse(".submission-content section").unwrap();
     // submission rating, use inner text
@@ -249,8 +249,13 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         None => return Err(Error::new("unable to select title", false)),
     };
 
-    let artist = match document.select(&ARTIST).next() {
-        Some(artist) => join_text_nodes(artist),
+    let artist = match document.select(&ARTIST).next().and_then(|elem| {
+        elem.value()
+            .attr("href")
+            .and_then(|href| href.split_once("/user/"))
+            .map(|(_, path)| path.strip_suffix('/').unwrap_or(path))
+    }) {
+        Some(artist) => artist.to_string(),
         None => return Err(Error::new("unable to select artist", false)),
     };
 
@@ -285,11 +290,7 @@ pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error
         None => return Err(Error::new("unable to select posted at", false)),
     };
 
-    let tags: Vec<String> = document
-        .select(&TAGS)
-        .into_iter()
-        .map(join_text_nodes)
-        .collect();
+    let tags: Vec<String> = document.select(&TAGS).map(join_text_nodes).collect();
 
     let description = match document.select(&DESCRIPTION).next() {
         Some(description) => description.inner_html(),
