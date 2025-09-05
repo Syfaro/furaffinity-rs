@@ -24,8 +24,6 @@ lazy_static! {
 
     static ref LATEST_SUBMISSION: Selector = Selector::parse("#gallery-frontpage-submissions figure:first-child b u a").unwrap();
 
-    static ref DATE_CLEANER: regex::Regex = regex::Regex::new(r"(\d{1,2})(st|nd|rd|th)").unwrap();
-
     static ref ONLINE_STATS_ELEMENT: Selector = Selector::parse(".online-stats").unwrap();
     static ref ONLINE_NUMBER: regex::Regex = regex::Regex::new(r"(\d+)").unwrap();
 
@@ -448,11 +446,9 @@ fn join_text_nodes(elem: scraper::ElementRef) -> String {
 pub fn parse_date(date: &str) -> Result<chrono::DateTime<chrono::Utc>, Error> {
     use chrono::offset::TimeZone;
 
-    let date_str = DATE_CLEANER.replace(date, "$1");
-
     let zone = chrono::FixedOffset::west(5 * 3600);
     let date = zone
-        .datetime_from_str(&date_str, "%b %e, %Y %l:%M %p")
+        .datetime_from_str(date, "%B %e, %Y, %H:%M:%S")
         .map_err(|_err| Error::new("unable to parse date", false))?;
 
     Ok(date.with_timezone(&chrono::Utc))
@@ -489,7 +485,7 @@ mod tests {
         assert_eq!(sub.title, "Bilberry fox");
         assert_eq!(sub.artist, "deadrussiansoul");
         assert_eq!(sub.content, Content::Image("https://d.furaffinity.net/art/deadrussiansoul/1555431774/1555431774.deadrussiansoul_Скан_20190411__7_.png".into()));
-        assert_eq!(sub.tags, vec!["fox", "bilberry"]);
+        assert_eq!(sub.tags, vec!["fox", "bilberry", "male"]);
 
         let sub = fa
             .get_submission(34426892)
@@ -528,8 +524,8 @@ mod tests {
     fn test_parse_date() {
         use chrono::offset::TimeZone;
 
-        let parsed = parse_date("Mar 23rd, 2019 12:46 AM").unwrap();
-        assert_eq!(parsed, chrono::Utc.ymd(2019, 3, 23).and_hms(5, 46, 0));
+        let parsed = parse_date("September 5, 2025, 14:55:24").unwrap();
+        assert_eq!(parsed, chrono::Utc.ymd(2025, 9, 5).and_hms(19, 55, 24));
     }
 
     #[test]
