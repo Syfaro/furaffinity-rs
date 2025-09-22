@@ -448,7 +448,7 @@ pub fn parse_date(date: &str) -> Result<chrono::DateTime<chrono::Utc>, Error> {
 
     let zone = chrono::FixedOffset::west(5 * 3600);
     let date = zone
-        .datetime_from_str(date, "%B %e, %Y, %H:%M:%S")
+        .datetime_from_str(date, "%B %e, %Y %I:%M:%S %p")
         .map_err(|_err| Error::new("unable to parse date", false))?;
 
     Ok(date.with_timezone(&chrono::Utc))
@@ -524,8 +524,8 @@ mod tests {
     fn test_parse_date() {
         use chrono::offset::TimeZone;
 
-        let parsed = parse_date("September 5, 2025, 14:55:24").unwrap();
-        assert_eq!(parsed, chrono::Utc.ymd(2025, 9, 5).and_hms(19, 55, 24));
+        let parsed = parse_date("June 17, 2025 12:00:00 PM").unwrap();
+        assert_eq!(parsed, chrono::Utc.ymd(2025, 6, 17).and_hms(17, 0, 0));
     }
 
     #[test]
