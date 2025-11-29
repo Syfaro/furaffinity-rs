@@ -20,7 +20,7 @@ lazy_static! {
     // html description, includes unneeded .submission-title div but unsure how best to remove
     static ref DESCRIPTION: Selector = Selector::parse(".submission-content section").unwrap();
     // submission rating, use inner text
-    static ref RATING: Selector = Selector::parse(".stats-container .rating span.rating-box").unwrap();
+    static ref RATING: Selector = Selector::parse(".stats-container .rating span").unwrap();
 
     static ref LATEST_SUBMISSION: Selector = Selector::parse("#gallery-frontpage-submissions figure:first-child b u a").unwrap();
 
