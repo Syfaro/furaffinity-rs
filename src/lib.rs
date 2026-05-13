@@ -7,20 +7,20 @@ lazy_static! {
 
     static ref ERROR_MESSAGE: Selector = Selector::parse(".error-message-box, div#standardpage section.notice-message p.link-override").unwrap();
     // use inner text
-    static ref ARTIST: Selector = Selector::parse(".submission-id-sub-container .submission-title + span a").unwrap();
+    static ref ARTIST: Selector = Selector::parse("#submission-main-content .submission-description-artist a[href*='/user/']").unwrap();
     // use inner text
-    static ref TITLE: Selector = Selector::parse(".submission-title h2 p").unwrap();
+    static ref TITLE: Selector = Selector::parse(".submission-title h2").unwrap();
     // use src attribute
     static ref IMAGE_URL: Selector = Selector::parse("#submissionImg").unwrap();
     static ref FLASH_OBJECT: Selector = Selector::parse("#flash_embed").unwrap();
     // use title attribute
-    static ref POSTED_AT: Selector = Selector::parse(".submission-id-sub-container strong span.popup_date").unwrap();
+    static ref POSTED_AT: Selector = Selector::parse("#submission-main-content .submission-description-header span.popup_date").unwrap();
     // get all, use inner text
-    static ref TAGS: Selector = Selector::parse("section.tags-row a:not(.tag-block)").unwrap();
+    static ref TAGS: Selector = Selector::parse("#submission-main-content .submission-tags .tags a:not(.tag-block)").unwrap();
     // html description, includes unneeded .submission-title div but unsure how best to remove
-    static ref DESCRIPTION: Selector = Selector::parse(".submission-content section").unwrap();
+    static ref DESCRIPTION: Selector = Selector::parse("#submission-main-content .submission-description").unwrap();
     // submission rating, use inner text
-    static ref RATING: Selector = Selector::parse(".stats-container .rating span").unwrap();
+    static ref RATING: Selector = Selector::parse("#submission-main-content .submission-page-stats div[class*='c-contentRating--']").unwrap();
 
     static ref LATEST_SUBMISSION: Selector = Selector::parse("#gallery-frontpage-submissions figure:first-child b u a").unwrap();
 
