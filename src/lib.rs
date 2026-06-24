@@ -125,23 +125,7 @@ impl FurAffinity {
 
         let document = scraper::Html::parse_document(&page.text().await?);
 
-        let online = document
-            .select(&ONLINE_STATS_ELEMENT)
-            .next()
-            .map(|elem| elem.text().collect::<String>());
-        let online = online.unwrap_or_default();
-        let mut numbers = ONLINE_NUMBER
-            .find_iter(&online)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .filter_map(|m| m.as_str().parse::<usize>().ok());
-
-        let online = OnlineCounts {
-            total: numbers.next().unwrap_or_default(),
-            guests: numbers.next().unwrap_or_default(),
-            registered: numbers.next().unwrap_or_default(),
-            other: numbers.next().unwrap_or_default(),
-        };
+        let online = parse_online(&document);
 
         let latest = document
             .select(&LATEST_SUBMISSION)
@@ -160,7 +144,10 @@ impl FurAffinity {
         Ok((id.parse()?, online))
     }
 
-    pub async fn get_submission(&self, id: i32) -> Result<Option<Submission>, Error> {
+    pub async fn get_submission(
+        &self,
+        id: i32,
+    ) -> Result<(Option<Submission>, OnlineCounts), Error> {
         let page = self
             .load_page(&format!("https://www.furaffinity.net/view/{}", id))
             .await?;
@@ -172,7 +159,12 @@ impl FurAffinity {
             ));
         }
 
-        parse_submission(id, &page.text().await?)
+        let text = page.text().await?;
+        let document = scraper::Html::parse_document(&text);
+        let online = parse_online(&document);
+        let submission = parse_submission(id, &document)?;
+
+        Ok((submission, online))
     }
 
     pub async fn calc_image_hash(&self, sub: Submission) -> Result<Submission, Error> {
@@ -225,9 +217,26 @@ fn extract_url(elem: scraper::ElementRef, attr: &'static str) -> Option<(String,
     Some((url, url_ext, filename))
 }
 
-pub fn parse_submission(id: i32, page: &str) -> Result<Option<Submission>, Error> {
-    let document = scraper::Html::parse_document(page);
+pub fn parse_online(document: &scraper::Html) -> OnlineCounts {
+    let online = document
+        .select(&ONLINE_STATS_ELEMENT)
+        .next()
+        .map(|elem| elem.text().collect::<String>())
+        .unwrap_or_default();
 
+    let mut numbers = ONLINE_NUMBER
+        .find_iter(&online)
+        .filter_map(|m| m.as_str().parse::<usize>().ok());
+
+    OnlineCounts {
+        total: numbers.next().unwrap_or_default(),
+        guests: numbers.next().unwrap_or_default(),
+        registered: numbers.next().unwrap_or_default(),
+        other: numbers.next().unwrap_or_default(),
+    }
+}
+
+pub fn parse_submission(id: i32, document: &scraper::Html) -> Result<Option<Submission>, Error> {
     let title_system_error = document
         .select(&PAGE_TITLE)
         .next()
@@ -480,6 +489,7 @@ mod tests {
             .get_submission(31209021)
             .await
             .expect("unable to load test submission")
+            .0
             .expect("submission did not exist");
 
         assert_eq!(sub.title, "Bilberry fox");
@@ -490,14 +500,16 @@ mod tests {
         let sub = fa
             .get_submission(34426892)
             .await
-            .expect("unable to load submission");
+            .expect("unable to load submission")
+            .0;
 
         assert!(sub.is_none());
 
         let sub = fa
             .get_submission(34999322)
             .await
-            .expect("unable to load submission");
+            .expect("unable to load submission")
+            .0;
 
         assert!(sub.is_none());
     }
@@ -509,6 +521,7 @@ mod tests {
             .get_submission(31209021)
             .await
             .expect("unable to load test submission")
+            .0
             .expect("submission did not exist");
 
         assert!(sub.file.is_none(), "file was downloaded before expected");
@@ -588,6 +601,7 @@ mod tests {
             .get_submission(38195654)
             .await
             .expect("unable to load test submission")
+            .0
             .expect("submission did not exist");
 
         let nav_links = sub.nav_links().expect("submission should have nav links");
