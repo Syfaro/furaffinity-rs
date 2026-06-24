@@ -2,18 +2,18 @@
 name = "furaffinity-rs"
 version = "0.1.0"
 authors = ["Syfaro <syfaro@huefox.com>"]
-edition = "2018"
+edition = "2024"
 
 [dependencies]
 lazy_static = "1"
-scraper = "0.13"
+scraper = "0.27"
 regex = "1"
-reqwest = "0.11"
+reqwest = "0.12"
 image = "0.23"
 chrono = "0.4"
 img_hash = "3"
 sha2 = "0.10"
-thiserror = "1"
+thiserror = "2"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
