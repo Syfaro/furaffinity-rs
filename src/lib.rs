@@ -137,8 +137,7 @@ impl FurAffinity {
             .attr("href")
             .ok_or_else(|| Error::new("href not found", false))?
             .split('/')
-            .filter(|part| !part.is_empty())
-            .last()
+            .rfind(|part| !part.is_empty())
             .ok_or_else(|| Error::new("part not found", false))?;
 
         Ok((id.parse()?, online))
@@ -211,8 +210,8 @@ impl FurAffinity {
 fn extract_url(elem: scraper::ElementRef, attr: &'static str) -> Option<(String, String, String)> {
     let url = "https:".to_owned() + elem.value().attr(attr)?;
 
-    let url_ext = url.split('.').last()?.to_string();
-    let filename = url.split('/').last()?.to_string();
+    let url_ext = url.split('.').next_back()?.to_string();
+    let filename = url.split('/').next_back()?.to_string();
 
     Some((url, url_ext, filename))
 }
@@ -453,12 +452,13 @@ fn join_text_nodes(elem: scraper::ElementRef) -> String {
 }
 
 pub fn parse_date(date: &str) -> Result<chrono::DateTime<chrono::Utc>, Error> {
-    use chrono::offset::TimeZone;
-
-    let zone = chrono::FixedOffset::west(5 * 3600);
-    let date = zone
-        .datetime_from_str(date, "%B %e, %Y %I:%M:%S %p")
-        .map_err(|_err| Error::new("unable to parse date", false))?;
+    let zone = chrono::FixedOffset::west_opt(5 * 3600)
+        .ok_or_else(|| Error::new("invalid timezone offset", false))?;
+    let date = chrono::NaiveDateTime::parse_from_str(date, "%B %e, %Y %I:%M:%S %p")
+        .map_err(|_err| Error::new("unable to parse date", false))?
+        .and_local_timezone(zone)
+        .single()
+        .ok_or_else(|| Error::new("unable to parse date", false))?;
 
     Ok(date.with_timezone(&chrono::Utc))
 }
@@ -530,7 +530,7 @@ mod tests {
             .await
             .expect("unable to calculate image hash");
         assert!(sub.file.is_some(), "file was not downloaded");
-        assert!(sub.file.unwrap().len() > 0, "file data was not populated");
+        assert!(!sub.file.unwrap().is_empty(), "file data was not populated");
     }
 
     #[test]
@@ -538,7 +538,10 @@ mod tests {
         use chrono::offset::TimeZone;
 
         let parsed = parse_date("June 17, 2025 12:00:00 PM").unwrap();
-        assert_eq!(parsed, chrono::Utc.ymd(2025, 6, 17).and_hms(17, 0, 0));
+        assert_eq!(
+            parsed,
+            chrono::Utc.with_ymd_and_hms(2025, 6, 17, 17, 0, 0).unwrap()
+        );
     }
 
     #[test]
@@ -556,7 +559,7 @@ mod tests {
                 first: Some(37545307),
                 next: Some(37545317),
             }),
-            parse_nav_links(&no_prev)
+            parse_nav_links(no_prev)
         );
 
         let all_links = r#"<span class="parsed_nav_links">
@@ -573,7 +576,7 @@ mod tests {
                 first: Some(37545307),
                 next: Some(37676046),
             }),
-            parse_nav_links(&all_links)
+            parse_nav_links(all_links)
         );
 
         let no_next = r#"<span class="parsed_nav_links">
@@ -589,7 +592,7 @@ mod tests {
                 first: Some(37545307),
                 next: None,
             }),
-            parse_nav_links(&no_next)
+            parse_nav_links(no_next)
         );
     }
 
