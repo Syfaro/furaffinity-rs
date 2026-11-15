@@ -13,7 +13,9 @@ lazy_static! {
     // use src attribute
     static ref IMAGE_URL: Selector = Selector::parse("#submissionImg").unwrap();
     static ref FLASH_OBJECT: Selector = Selector::parse("#flash_embed").unwrap();
-    static ref VIDEO_EMBED: Selector = Selector::parse(".submission-area.submission-video iframe").unwrap();
+    static ref VIDEO_EMBED: Selector = Selector::parse(
+        ".submission-area.submission-video iframe, .submission-area.submission-video video source"
+    ).unwrap();
     // use title attribute
     static ref POSTED_AT: Selector = Selector::parse("#submission-main-content .submission-description-header span.popup_date").unwrap();
     // get all, use inner text
@@ -277,8 +279,8 @@ pub fn parse_submission(id: i32, document: &scraper::Html) -> Result<Option<Subm
                 extract_url(url, "data").ok_or_else(|| Error::new("missing flash url", true))?;
 
             (Content::Flash(url), url_ext, filename)
-        } else if let Some(iframe) = document.select(&VIDEO_EMBED).next() {
-            let url = iframe
+        } else if let Some(embed) = document.select(&VIDEO_EMBED).next() {
+            let url = embed
                 .value()
                 .attr("src")
                 .ok_or_else(|| Error::new("missing embed url", true))?;
