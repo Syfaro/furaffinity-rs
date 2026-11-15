@@ -13,6 +13,7 @@ lazy_static! {
     // use src attribute
     static ref IMAGE_URL: Selector = Selector::parse("#submissionImg").unwrap();
     static ref FLASH_OBJECT: Selector = Selector::parse("#flash_embed").unwrap();
+    static ref VIDEO_EMBED: Selector = Selector::parse(".submission-area.submission-video iframe").unwrap();
     // use title attribute
     static ref POSTED_AT: Selector = Selector::parse("#submission-main-content .submission-description-header span.popup_date").unwrap();
     // get all, use inner text
@@ -168,7 +169,7 @@ impl FurAffinity {
 
     pub async fn calc_image_hash(&self, sub: Submission) -> Result<Submission, Error> {
         let url = match &sub.content {
-            Content::Flash(_) => return Ok(Submission { hash: None, ..sub }),
+            Content::Flash(_) | Content::Embed(_) => return Ok(Submission { hash: None, ..sub }),
             Content::Image(url) => url.clone(),
         };
 
@@ -276,6 +277,17 @@ pub fn parse_submission(id: i32, document: &scraper::Html) -> Result<Option<Subm
                 extract_url(url, "data").ok_or_else(|| Error::new("missing flash url", true))?;
 
             (Content::Flash(url), url_ext, filename)
+        } else if let Some(iframe) = document.select(&VIDEO_EMBED).next() {
+            let url = iframe
+                .value()
+                .attr("src")
+                .ok_or_else(|| Error::new("missing embed url", true))?;
+
+            (
+                Content::Embed(url.to_string()),
+                String::new(),
+                String::new(),
+            )
         } else {
             panic!("invalid submission type")
         }
@@ -395,14 +407,14 @@ impl Rating {
 pub enum Content {
     Image(String),
     Flash(String),
+    Embed(String),
 }
 
 impl Content {
     /// Extract URL from any type of Content.
     pub fn url(&self) -> String {
         match self {
-            Content::Image(url) => url.clone(),
-            Content::Flash(url) => url.clone(),
+            Content::Image(url) | Content::Flash(url) | Content::Embed(url) => url.clone(),
         }
     }
 }
